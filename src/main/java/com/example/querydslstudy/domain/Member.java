@@ -6,7 +6,6 @@ import javax.persistence.*;
 
 @Entity
 @Getter
-@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @ToString
 public class Member {
@@ -16,6 +15,7 @@ public class Member {
     @Column(name = "member_id")
     private Long id;
 
+    @Setter
     private String username;
 
     private int age;

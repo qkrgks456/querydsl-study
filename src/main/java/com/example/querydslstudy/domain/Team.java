@@ -9,7 +9,6 @@ import java.util.List;
 
 @Entity
 @Getter
-@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @ToString
 public class Team {
@@ -19,15 +18,19 @@ public class Team {
     @Column(name = "team_id")
     private Long id;
 
+    @Setter
     private String name;
+
+    private String color;
 
     @OneToMany(mappedBy = "team")
     @ToString.Exclude
     private List<Member> members = new ArrayList<>();
 
     @Builder
-    public Team(String name) {
+    public Team(String name, String color) {
         this.name = name;
+        this.color = color;
     }
 
 }

@@ -1,8 +1,10 @@
 package com.example.querydslstudy;
 
 import com.example.querydslstudy.domain.Member;
-import com.example.querydslstudy.domain.QTeam;
 import com.example.querydslstudy.domain.Team;
+import com.example.querydslstudy.dto.MemberDto;
+import com.example.querydslstudy.dto.QMemberDto;
+import com.example.querydslstudy.repository.MemberJpaRepository;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -13,11 +15,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
-
 import java.util.List;
 
 import static com.example.querydslstudy.domain.QMember.member;
 import static com.example.querydslstudy.domain.QTeam.team;
+import static com.querydsl.core.types.dsl.Expressions.asString;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
@@ -27,15 +29,20 @@ public class QuerydslBasicTest {
     @Autowired
     EntityManager entityManager;
 
+    @Autowired
     JPAQueryFactory queryFactory;
+
+    @Autowired
+    MemberJpaRepository memberJpaRepository;
 
     @BeforeEach
     public void init() {
-        queryFactory = new JPAQueryFactory(entityManager);
         Team teamA = Team.builder()
+                .color("red")
                 .name("teamA")
                 .build();
         Team teamB = Team.builder()
+                .color("blue")
                 .name("teamB")
                 .build();
         entityManager.persist(teamA);
@@ -66,6 +73,11 @@ public class QuerydslBasicTest {
         entityManager.persist(member2);
         entityManager.persist(member3);
         entityManager.persist(member4);
+
+
+        entityManager.flush();
+        entityManager.clear();
+
     }
 
     @Test
@@ -207,7 +219,7 @@ public class QuerydslBasicTest {
     @Test
     public void join_on_filtering() {
         List<Tuple> tuples = queryFactory
-                .select(member, team)
+                .select(member, asString("good"))
                 .from(member)
                 .leftJoin(member.team, team)
                 .on(team.name.eq("teamA"))
@@ -223,7 +235,7 @@ public class QuerydslBasicTest {
      * JPQL: SELECT m, t FROM Member m LEFT JOIN Team t on m.username = t.name
      */
     @Test
-    public void join_on_no_relation() throws Exception {
+    public void join_on_no_relation() {
         entityManager.persist(Member.builder().username("teamA").build());
         entityManager.persist(Member.builder().username("teamB").build());
 
@@ -238,4 +250,83 @@ public class QuerydslBasicTest {
             System.out.println("tuple = " + tuple);
         }
     }
+
+    @Test
+    public void join_test() {
+        List<Member> list = entityManager.createQuery("select m from Member m join m.team", Member.class)
+                .getResultList();
+        for (Member m : list) {
+            m.getTeam().getName(); // 지연로딩 호출
+        }
+    }
+
+    @Test
+    public void fetch_join_test() {
+        List<Member> list = entityManager.createQuery("select m from Member m join fetch m.team", Member.class)
+                .getResultList();
+        for (Member m : list) {
+            System.out.println("팀이름 = " + m.getTeam().getName());
+        }
+    }
+
+    @Test
+    public void bulkUpdate() {
+
+        Member findMember = entityManager.createQuery("select m from Member m where m.id = 1L", Member.class)
+                .getSingleResult();
+
+        queryFactory
+                .update(member)
+                .set(member.age, 0)
+                .execute();
+
+        Member findMember2 = queryFactory
+                .selectFrom(member)
+                .where(member.id.eq(1L))
+                .fetchOne();
+
+        System.out.println(findMember2.getAge()); // 10 출력
+        // 영속성 컨텍스트 초기화
+        entityManager.flush();
+        entityManager.clear();
+
+        Member findMember3 = queryFactory
+                .selectFrom(member)
+                .where(member.id.eq(1L))
+                .fetchOne();
+
+
+        System.out.println(findMember3.getAge()); // 0 출력
+    }
+
+    @Test
+    public void proxy_test() {
+
+        String jpql = "select m from Member m "
+                + "where (select count(t) from m.team t where t.name = m.username) > 0";
+        entityManager.createQuery(jpql, Member.class)
+                .getResultList();
+    }
+
+
+    @Test
+    public void findDtoByJPQL() {
+        List<MemberDto> resultList = entityManager.createQuery("select new com.example.querydslstudy.dto.MemberDto(m.username,m.age) from Member m", MemberDto.class)
+                .getResultList();
+
+        System.out.println("resultList = " + resultList);
+
+    }
+
+    @Test
+    public void findDtoBySetter() {
+        List<MemberDto> dtoList = queryFactory
+                .select(new QMemberDto(member.username, member.age))
+                .from(member)
+                .where()
+                .fetch();
+        System.out.println("dtoList = " + dtoList);
+    }
+
+
 }
